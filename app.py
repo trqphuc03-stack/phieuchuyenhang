@@ -361,3 +361,23 @@ if 0 < count < MAX_PHOTOS and count == len(st.session_state.saved_urls):
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Lỗi: {e}")
+st.markdown("""
+<script>
+async function switchToBackCamera() {
+    await new Promise(r => setTimeout(r, 1000));
+    const videos = document.querySelectorAll('video');
+    for (const video of videos) {
+        if (video.srcObject) {
+            video.srcObject.getTracks().forEach(t => t.stop());
+        }
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }
+    });
+    for (const video of videos) {
+        video.srcObject = stream;
+    }
+}
+switchToBackCamera();
+</script>
+""", unsafe_allow_html=True)
