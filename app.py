@@ -117,9 +117,10 @@ def get_google_clients():
 def add_watermark(image_bytes, text_lines):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     draw = ImageDraw.Draw(img)
-    font_size = max(40, img.width // 15)  # to hơn
+    font_size = max(60, img.width // 12)
     font = None
     font_paths = [
+        "arialbd.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
@@ -134,17 +135,13 @@ def add_watermark(image_bytes, text_lines):
     if font is None:
         font = ImageFont.load_default()
 
-    margin = 24
-    line_height = font_size + 10
-    x0 = margin
-    y0 = img.height - (line_height * len(text_lines)) - margin
-    for i, line in enumerate(text_lines):
-        y = y0 + i * line_height
-        # Viền đen dày hơn (vẽ 4 hướng)
-        for dx, dy in [(-2,-2),(2,-2),(-2,2),(2,2)]:
-            draw.text((x0 + dx, y + dy), line, font=font, fill=(0, 0, 0))
-        # Chữ trắng
-        draw.text((x0, y), line, font=font, fill=(255, 255, 255))
+    x0 = 24
+    y0 = 24  # góc trên bên trái
+    line = text_lines[0]  # chỉ lấy dòng thời gian
+    for dx, dy in [(-3,-3),(3,-3),(-3,3),(3,3)]:
+        draw.text((x0 + dx, y0 + dy), line, font=font, fill=(0, 0, 0))
+    draw.text((x0, y0), line, font=font, fill=(255, 255, 255))
+
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=92)
     return buf.getvalue()
@@ -287,7 +284,7 @@ if count < MAX_PHOTOS:
                             branch_slug = st.session_state.branch.replace(" ", "_")
                             filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
                             now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            watermark = [now_str, "Vạn Phúc - Hà Đông"]
+                            watermark = [now_str]
                             url = upload_image_to_drive(
                                 drive_service,
                                 photo.getvalue(),
@@ -322,7 +319,7 @@ if count < MAX_PHOTOS:
                                 branch_slug = st.session_state.branch.replace(" ", "_")
                                 filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
                                 now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                watermark = [now_str, "Vạn Phúc - Hà Đông"]
+                                watermark = [now_str]
                                 url = upload_image_to_drive(
                                     drive_service,
                                     photo.getvalue(),
