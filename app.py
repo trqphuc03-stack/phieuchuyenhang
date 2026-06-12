@@ -191,12 +191,12 @@ def finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, image_urls):
     ws.append_row(row, value_input_option="USER_ENTERED")
 def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch, session_ts, photos_bytes):
     import concurrent.futures
-    timestamp = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y-%m-%d %H:%M:%S")
     branch_slug = branch.replace(" ", "_")
 
     def upload_one(args):
         i, img_bytes = args
-        now_str = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
+        now_str = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y-%m-%d %H:%M:%S")
         filename = f"anh{i+1}_{branch_slug}_{session_ts}.jpg"
         return i, upload_image_to_drive(drive_service, img_bytes, filename, folder_id, watermark_lines=[now_str])
 
@@ -217,7 +217,7 @@ if "session_done" not in st.session_state:
 if "branch" not in st.session_state:
     st.session_state.branch = "-- Chọn chi nhánh --"
 if "session_ts" not in st.session_state:
-    st.session_state.session_ts = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y%m%d_%H%M%S")
+    st.session_state.session_ts = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y%m%d_%H%M%S")
 
 MAX_PHOTOS = 8
 
@@ -237,7 +237,7 @@ if st.session_state.session_done:
         st.session_state.saved_bytes = []
         st.session_state.session_done = False
         st.session_state.branch = "-- Chọn chi nhánh --"
-        st.session_state.session_ts = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y%m%d_%H%M%S")
+        st.session_state.session_ts = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y%m%d_%H%M%S")
         st.rerun()
     st.stop()
 
@@ -269,10 +269,11 @@ if count > 0:
     """, unsafe_allow_html=True)
 
     # Thumbnail các ảnh đã lưu
-    cols = st.columns(min(count, 8))
-    for i, img_bytes in enumerate(st.session_state.saved_bytes):
+    display_count = min(len(st.session_state.saved_bytes), 8)
+    cols = st.columns(display_count)
+    for i in range(display_count):
         with cols[i]:
-            st.image(img_bytes, width=60, caption=f"#{i+1}")
+            st.image(st.session_state.saved_bytes[i], width=60, caption=f"#{i+1}")
 
 # ── Chụp ảnh mới (nếu chưa đủ 8) ───────────────────────────────
 if count < MAX_PHOTOS:
