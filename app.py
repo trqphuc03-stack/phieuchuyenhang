@@ -122,9 +122,6 @@ def add_watermark(image_bytes, text_lines):
     font_paths = [
         "arialbd.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
     ]
     for path in font_paths:
         try:
