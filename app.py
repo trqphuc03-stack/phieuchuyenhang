@@ -169,35 +169,26 @@ def upload_image_to_drive(drive_service, image_bytes, filename, folder_id, water
     return f"https://drive.google.com/uc?id={file_id}"
 
 def finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, image_urls):
-    """
-    Ghi 1 dòng vào sheet:
-    A = Thời gian, B = Trung Tâm/Chi nhánh
-    C = url1, D = =IMAGE(C?), E = url2, F = =IMAGE(E?), ...
-    Tối đa 8 ảnh → cột C..R
-    """
     sh = gc.open_by_key(spreadsheet_id)
     ws = sh.sheet1
 
-    # Tìm dòng tiếp theo trống
     all_values = ws.get_all_values()
     next_row = len(all_values) + 1
 
-    # Cột link: C=3, E=5, G=7, I=9, K=11, M=13, O=15, Q=17
-    link_cols = [3, 5, 7, 9, 11, 13, 15, 17]
+    # Tạo 1 dòng 18 cột (A..R), điền trống trước
+    row = [""] * 18
+    row[0] = timestamp   # A
+    row[1] = branch      # B
 
-    # Ghi Thời gian (A) và Chi nhánh (B)
-    ws.update_cell(next_row, 1, timestamp)
-    ws.update_cell(next_row, 2, branch)
-
-    col_letters = {3:"C", 5:"E", 7:"G", 9:"I", 11:"K", 13:"M", 15:"O", 17:"Q"}
+    col_letters = {0:"C", 2:"E", 4:"G", 6:"I", 8:"K", 10:"M", 12:"O", 14:"Q"}
+    link_positions = [2, 4, 6, 8, 10, 12, 14, 16]  # C=2, E=4, G=6...
 
     for i, url in enumerate(image_urls):
-        link_col = link_cols[i]
-        img_col  = link_col + 1  # D, F, H, J, L, N, P, R
-        letter   = col_letters[link_col]
+        lp = link_positions[i]
+        row[lp] = url
+        row[lp + 1] = f'=IMAGE({list(col_letters.values())[i]}{next_row})'
 
-        ws.update_cell(next_row, link_col, url)
-        ws.update_cell(next_row, img_col, f'=IMAGE({letter}{next_row})')
+    ws.append_row(row, value_input_option="USER_ENTERED")
 def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch, session_ts, photos_bytes):
     import concurrent.futures
     timestamp = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
