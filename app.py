@@ -17,10 +17,8 @@ st.set_page_config(
 # ── CSS tùy chỉnh ───────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* Tổng thể */
     .stApp { background-color: #F7F9FC; }
 
-    /* Header */
     .app-header {
         background: linear-gradient(135deg, #1B4F72, #2E86C1);
         color: white;
@@ -32,7 +30,6 @@ st.markdown("""
     .app-header h1 { margin: 0; font-size: 1.6rem; font-weight: 700; }
     .app-header p  { margin: 4px 0 0; font-size: 0.9rem; opacity: 0.85; }
 
-    /* Card section */
     .section-card {
         background: white;
         border-radius: 14px;
@@ -49,7 +46,20 @@ st.markdown("""
         margin-bottom: 12px;
     }
 
-    /* Nút gửi */
+    .progress-bar-bg {
+        background: #E8F4FD;
+        border-radius: 8px;
+        height: 8px;
+        margin: 8px 0 16px;
+        overflow: hidden;
+    }
+    .progress-bar-fill {
+        background: linear-gradient(90deg, #1B4F72, #2E86C1);
+        height: 100%;
+        border-radius: 8px;
+        transition: width 0.3s ease;
+    }
+
     div.stButton > button {
         width: 100%;
         background: linear-gradient(135deg, #1B4F72, #2E86C1);
@@ -62,10 +72,29 @@ st.markdown("""
         letter-spacing: 0.03em;
         cursor: pointer;
         transition: opacity 0.2s;
+        margin-bottom: 8px;
     }
     div.stButton > button:hover { opacity: 0.88; }
 
-    /* Ẩn footer mặc định */
+    .thumb-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .thumb-item {
+        width: 60px;
+        height: 60px;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid #2E86C1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        background: #E8F4FD;
+    }
+
     footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
@@ -78,7 +107,6 @@ SCOPES = [
 
 @st.cache_resource
 def get_google_clients():
-    """Khởi tạo Google Sheets + Drive client từ secrets."""
     creds_dict = json.loads(st.secrets["GOOGLE_SERVICE_ACCOUNT_JSON"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     gc = gspread.authorize(creds)
@@ -88,31 +116,66 @@ def get_google_clients():
 def upload_image_to_drive(drive_service, image_bytes, filename, folder_id):
     media = MediaInMemoryUpload(image_bytes, mimetype="image/jpeg")
     file_metadata = {"name": filename, "parents": [folder_id]}
-    
     uploaded = drive_service.files().create(
         body=file_metadata,
         media_body=media,
         fields="id",
-        supportsAllDrives=True,  # ← THÊM
+        supportsAllDrives=True,
     ).execute()
-    
     file_id = uploaded.get("id")
-    
     drive_service.permissions().create(
         fileId=file_id,
         body={"type": "anyone", "role": "reader"},
-        supportsAllDrives=True,  # ← THÊM
+        supportsAllDrives=True,
     ).execute()
-    
     return f"https://drive.google.com/uc?id={file_id}"
 
-def append_to_sheet(gc, spreadsheet_id, row_data):
-    """Ghi một dòng mới vào Google Sheet."""
+def finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, image_urls):
+    """
+    Ghi 1 dòng vào sheet:
+    A = Thời gian, B = Trung Tâm/Chi nhánh
+    C = url1, D = =IMAGE(C?), E = url2, F = =IMAGE(E?), ...
+    Tối đa 8 ảnh → cột C..R
+    """
     sh = gc.open_by_key(spreadsheet_id)
     ws = sh.sheet1
-    ws.append_row(row_data)
 
-# ── Giao diện ───────────────────────────────────────────────────
+    # Tìm dòng tiếp theo trống
+    all_values = ws.get_all_values()
+    next_row = len(all_values) + 1
+
+    # Cột link: C=3, E=5, G=7, I=9, K=11, M=13, O=15, Q=17
+    link_cols = [3, 5, 7, 9, 11, 13, 15, 17]
+
+    # Ghi Thời gian (A) và Chi nhánh (B)
+    ws.update_cell(next_row, 1, timestamp)
+    ws.update_cell(next_row, 2, branch)
+
+    col_letters = {3:"C", 5:"E", 7:"G", 9:"I", 11:"K", 13:"M", 15:"O", 17:"Q"}
+
+    for i, url in enumerate(image_urls):
+        link_col = link_cols[i]
+        img_col  = link_col + 1  # D, F, H, J, L, N, P, R
+        letter   = col_letters[link_col]
+
+        ws.update_cell(next_row, link_col, url)
+        ws.update_cell(next_row, img_col, f'=IMAGE({letter}{next_row})')
+
+# ── Session state ────────────────────────────────────────────────
+if "saved_urls" not in st.session_state:
+    st.session_state.saved_urls = []          # list of uploaded Drive URLs
+if "saved_bytes" not in st.session_state:
+    st.session_state.saved_bytes = []         # list of image bytes (for thumbnail)
+if "session_done" not in st.session_state:
+    st.session_state.session_done = False
+if "branch" not in st.session_state:
+    st.session_state.branch = "-- Chọn chi nhánh --"
+if "session_ts" not in st.session_state:
+    st.session_state.session_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+MAX_PHOTOS = 8
+
+# ── Header ───────────────────────────────────────────────────────
 st.markdown("""
 <div class="app-header">
     <h1>📦 Xuất Kho</h1>
@@ -120,78 +183,166 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Thông tin đơn ────────────────────────────────────────────────
-st.markdown('<div class="section-card"><div class="section-title">📋 Thông tin đơn</div>', unsafe_allow_html=True)
+# ── Nếu phiên đã hoàn tất ────────────────────────────────────────
+if st.session_state.session_done:
+    st.success(f"✅ Đã hoàn tất! Đã lưu {len(st.session_state.saved_urls)} ảnh.")
+    if st.button("🔄 Bắt đầu phiên mới"):
+        st.session_state.saved_urls  = []
+        st.session_state.saved_bytes = []
+        st.session_state.session_done = False
+        st.session_state.branch = "-- Chọn chi nhánh --"
+        st.session_state.session_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        st.rerun()
+    st.stop()
 
-branch_options = [
-    "-- Chọn chi nhánh --",
-    "Chi nhánh Hà Nội",
-    "Chi nhánh TP. Hồ Chí Minh",
-    "Chi nhánh Đà Nẵng",
-    "Chi nhánh Cần Thơ",
-    "Chi nhánh Hải Phòng",
-]
-branch = st.selectbox("Tên chi nhánh nhận hàng", branch_options)
-st.markdown('</div>', unsafe_allow_html=True)
+# ── Chọn chi nhánh (chỉ hiện khi chưa có ảnh nào) ───────────────
+if len(st.session_state.saved_urls) == 0:
+    st.markdown('<div class="section-card"><div class="section-title">📋 Thông tin đơn</div>', unsafe_allow_html=True)
+    branch_options = [
+        "-- Chọn chi nhánh --",
+        "Chi nhánh Hà Nội",
+        "Chi nhánh TP. Hồ Chí Minh",
+        "Chi nhánh Đà Nẵng",
+        "Chi nhánh Cần Thơ",
+        "Chi nhánh Hải Phòng",
+    ]
+    st.session_state.branch = st.selectbox("Tên chi nhánh nhận hàng", branch_options)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# ── Chụp ảnh phiếu gửi hàng ─────────────────────────────────────
-st.markdown('<div class="section-card"><div class="section-title">🧾 Ảnh phiếu gửi hàng</div>', unsafe_allow_html=True)
-photo_bill = st.camera_input("Chụp phiếu gửi hàng")
-st.markdown('</div>', unsafe_allow_html=True)
+# ── Tiến trình ───────────────────────────────────────────────────
+count = len(st.session_state.saved_urls)
+if count > 0:
+    pct = int(count / MAX_PHOTOS * 100)
+    st.markdown(f"""
+    <div style="margin-bottom:4px; font-size:0.85rem; color:#555;">
+        📸 Đã chụp: <b>{count}/{MAX_PHOTOS}</b> ảnh
+    </div>
+    <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width:{pct}%"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ── Chụp ảnh hàng hóa ────────────────────────────────────────────
-st.markdown('<div class="section-card"><div class="section-title">🗃️ Ảnh hàng hóa bày ra</div>', unsafe_allow_html=True)
-photo_goods = st.camera_input("Chụp hàng hóa")
-st.markdown('</div>', unsafe_allow_html=True)
+    # Thumbnail các ảnh đã lưu
+    cols = st.columns(min(count, 8))
+    for i, img_bytes in enumerate(st.session_state.saved_bytes):
+        with cols[i]:
+            st.image(img_bytes, width=60, caption=f"#{i+1}")
 
-# ── Nút gửi ─────────────────────────────────────────────────────
-submit = st.button("✅ Xác nhận & Lưu")
+# ── Chụp ảnh mới (nếu chưa đủ 8) ───────────────────────────────
+if count < MAX_PHOTOS:
+    st.markdown(f'<div class="section-card"><div class="section-title">📷 Chụp ảnh #{count + 1}</div>', unsafe_allow_html=True)
+    photo = st.camera_input(f"Ảnh thứ {count + 1}", key=f"cam_{count}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if submit:
-    # Validate
-    if branch == "-- Chọn chi nhánh --":
-        st.error("⚠️ Vui lòng chọn chi nhánh.")
-    elif photo_bill is None:
-        st.error("⚠️ Vui lòng chụp ảnh phiếu gửi hàng.")
-    elif photo_goods is None:
-        st.error("⚠️ Vui lòng chụp ảnh hàng hóa.")
-    else:
-        with st.spinner("Đang lưu..."):
+    if photo is not None:
+        # Nút Lưu ảnh này
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button(f"💾 Lưu ảnh #{count + 1}"):
+                if st.session_state.branch == "-- Chọn chi nhánh --":
+                    st.error("⚠️ Vui lòng chọn chi nhánh trước.")
+                else:
+                    with st.spinner("Đang upload ảnh..."):
+                        try:
+                            gc, drive_service = get_google_clients()
+                            folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+                            branch_slug = st.session_state.branch.replace(" ", "_")
+                            filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
+                            url = upload_image_to_drive(
+                                drive_service,
+                                photo.getvalue(),
+                                filename,
+                                folder_id,
+                            )
+                            st.session_state.saved_urls.append(url)
+                            st.session_state.saved_bytes.append(photo.getvalue())
+                            st.success(f"✅ Đã lưu ảnh #{count + 1}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi upload: {e}")
+
+        with col2:
+            if st.button("🏁 Hoàn tất ngay"):
+                if st.session_state.branch == "-- Chọn chi nhánh --":
+                    st.error("⚠️ Vui lòng chọn chi nhánh trước.")
+                elif len(st.session_state.saved_urls) == 0 and photo is None:
+                    st.error("⚠️ Chưa có ảnh nào được lưu.")
+                else:
+                    with st.spinner("Đang hoàn tất..."):
+                        try:
+                            gc, drive_service = get_google_clients()
+                            folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+                            spreadsheet_id = st.secrets["GOOGLE_SHEET_ID"]
+
+                            urls = list(st.session_state.saved_urls)
+
+                            # Nếu ảnh hiện tại chưa lưu, upload luôn
+                            if photo is not None and len(urls) == count:
+                                branch_slug = st.session_state.branch.replace(" ", "_")
+                                filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
+                                url = upload_image_to_drive(
+                                    drive_service,
+                                    photo.getvalue(),
+                                    filename,
+                                    folder_id,
+                                )
+                                urls.append(url)
+                                st.session_state.saved_bytes.append(photo.getvalue())
+
+                            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            finalize_to_sheet(
+                                gc,
+                                spreadsheet_id,
+                                st.session_state.branch,
+                                timestamp,
+                                urls,
+                            )
+                            st.session_state.saved_urls = urls
+                            st.session_state.session_done = True
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {e}")
+
+# ── Nút Hoàn tất (khi đã có ≥1 ảnh lưu, không có ảnh mới đang chờ) ──
+elif count > 0:
+    # Đã đủ 8 ảnh
+    st.info("📸 Đã đủ 8 ảnh tối đa.")
+    if st.button("🏁 Hoàn tất & Lưu vào Sheet"):
+        with st.spinner("Đang lưu vào Google Sheet..."):
             try:
-                gc, drive_service = get_google_clients()
-
-                now = datetime.datetime.now()
-                timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-                date_str  = now.strftime("%Y%m%d_%H%M%S")
-
-                folder_id      = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+                gc, _ = get_google_clients()
                 spreadsheet_id = st.secrets["GOOGLE_SHEET_ID"]
-
-                # Upload ảnh
-                url_bill = upload_image_to_drive(
-                    drive_service,
-                    photo_bill.getvalue(),
-                    f"phieu_{branch.replace(' ', '_')}_{date_str}.jpg",
-                    folder_id,
-                )
-                url_goods = upload_image_to_drive(
-                    drive_service,
-                    photo_goods.getvalue(),
-                    f"hang_{branch.replace(' ', '_')}_{date_str}.jpg",
-                    folder_id,
-                )
-
-                # Ghi vào Sheet
-                append_to_sheet(gc, spreadsheet_id, [
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                finalize_to_sheet(
+                    gc,
+                    spreadsheet_id,
+                    st.session_state.branch,
                     timestamp,
-                    branch,
-                    url_bill,
-                    url_goods,
-                    "—",  # email nếu có auth
-                ])
+                    st.session_state.saved_urls,
+                )
+                st.session_state.session_done = True
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Lỗi: {e}")
 
-                st.success(f"✅ Đã lưu thành công lúc {timestamp}")
-                st.markdown(f"[🔗 Xem ảnh phiếu]({url_bill})　[🔗 Xem ảnh hàng]({url_goods})")
-
+# ── Nút Hoàn tất sớm (hiện khi đã có ≥1 ảnh, đang ở màn chụp) ──
+if 0 < count < MAX_PHOTOS and count == len(st.session_state.saved_urls):
+    st.markdown("---")
+    if st.button(f"🏁 Hoàn tất với {count} ảnh đã lưu"):
+        with st.spinner("Đang lưu vào Google Sheet..."):
+            try:
+                gc, _ = get_google_clients()
+                spreadsheet_id = st.secrets["GOOGLE_SHEET_ID"]
+                timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                finalize_to_sheet(
+                    gc,
+                    spreadsheet_id,
+                    st.session_state.branch,
+                    timestamp,
+                    st.session_state.saved_urls,
+                )
+                st.session_state.session_done = True
+                st.rerun()
             except Exception as e:
                 st.error(f"❌ Lỗi: {e}")
