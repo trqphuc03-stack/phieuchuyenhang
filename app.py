@@ -191,12 +191,12 @@ def finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, image_urls):
     ws.append_row(row, value_input_option="USER_ENTERED")
 def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch, session_ts, photos_bytes):
     import concurrent.futures
-    timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
     branch_slug = branch.replace(" ", "_")
 
     def upload_one(args):
         i, img_bytes = args
-        now_str = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7).strftime("%Y-%m-%d %H:%M:%S")
+        now_str = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
         filename = f"anh{i+1}_{branch_slug}_{session_ts}.jpg"
         return i, upload_image_to_drive(drive_service, img_bytes, filename, folder_id, watermark_lines=[now_str])
 
