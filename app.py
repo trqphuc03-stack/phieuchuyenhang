@@ -198,10 +198,10 @@ def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch
         now_str = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
 
         img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-        if img.width > 1400 or img.height > 1400:
-            img.thumbnail((1400, 1400), Image.LANCZOS)
+        if img.width > 1920 or img.height > 1920:
+            img.thumbnail((1920, 1920), Image.LANCZOS)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=78, optimize=True)
+        img.save(buf, format="JPEG", quality=88, optimize=True)
         compressed = buf.getvalue()
         del img, buf
 
@@ -222,6 +222,9 @@ def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch
     for args in enumerate(photos_bytes):
         i, url = upload_one(args)
         urls[i] = url
+
+    finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, urls)
+    return urls
 
     finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, urls)
     return urls
