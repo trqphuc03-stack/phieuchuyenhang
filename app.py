@@ -194,6 +194,31 @@ def upload_all_and_finalize(drive_service, gc, folder_id, spreadsheet_id, branch
     timestamp = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
     branch_slug = branch.replace(" ", "_")
 
+    def compress_image(image_bytes):
+        """Nén ảnh xuống max 1200px và quality 70 trước khi upload."""
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        max_size = 1200
+        if img.width > max_size or img.height > max_size:
+            img.thumbnail((max_size, max_size), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=70)
+        return buf.getvalue()
+
+    def upload_one(args):
+        i, img_bytes = args
+        now_str = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
+        filename = f"anh{i+1}_{branch_slug}_{session_ts}.jpg"
+        compressed = compress_image(img_bytes)
+        return i, upload_image_to_drive(drive_service, compressed, filename, folder_id, watermark_lines=[now_str])
+
+    urls = [None] * len(photos_bytes)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(upload_one, enumerate(photos_bytes)))
+    for i, url in results:
+        urls[i] = url
+
+    finalize_to_sheet(gc, spreadsheet_id, branch, timestamp, urls)
+    return urls
     def upload_one(args):
         i, img_bytes = args
         now_str = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
@@ -219,7 +244,7 @@ if "branch" not in st.session_state:
 if "session_ts" not in st.session_state:
     st.session_state.session_ts = (datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) + datetime.timedelta(hours=7)).strftime("%Y%m%d_%H%M%S")
 
-MAX_PHOTOS = 8
+MAX_PHOTOS = 5
 
 # ── Header ───────────────────────────────────────────────────────
 st.markdown("""
