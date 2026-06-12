@@ -4,8 +4,6 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 import datetime
-import os
-os.environ["TZ"] = "Asia/Ho_Chi_Minh"
 import io
 import json
 from PIL import Image, ImageDraw, ImageFont
@@ -211,7 +209,7 @@ if "session_done" not in st.session_state:
 if "branch" not in st.session_state:
     st.session_state.branch = "-- Chọn chi nhánh --"
 if "session_ts" not in st.session_state:
-    st.session_state.session_ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    st.session_state.session_ts = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y%m%d_%H%M%S")
 
 MAX_PHOTOS = 8
 
@@ -289,7 +287,7 @@ if count < MAX_PHOTOS:
                             folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
                             branch_slug = st.session_state.branch.replace(" ", "_")
                             filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
-                            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            now_str = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
                             watermark = [now_str]
                             url = upload_image_to_drive(
                                 drive_service,
@@ -324,7 +322,7 @@ if count < MAX_PHOTOS:
                             if photo is not None and len(urls) == count:
                                 branch_slug = st.session_state.branch.replace(" ", "_")
                                 filename = f"anh{count+1}_{branch_slug}_{st.session_state.session_ts}.jpg"
-                                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                now_str = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
                                 watermark = [now_str]
                                 url = upload_image_to_drive(
                                     drive_service,
@@ -336,7 +334,7 @@ if count < MAX_PHOTOS:
                                 urls.append(url)
                                 st.session_state.saved_bytes.append(photo.getvalue())
 
-                            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            timestamp = (datetime.datetime.utcnow() + datetime.timedelta(hours=7)).strftime("%Y-%m-%d %H:%M:%S")
                             finalize_to_sheet(
                                 gc,
                                 spreadsheet_id,
