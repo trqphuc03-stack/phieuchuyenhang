@@ -348,7 +348,7 @@ if count < MAX_PHOTOS:
 # ── Nút Hoàn tất (khi đã có ≥1 ảnh lưu, không có ảnh mới đang chờ) ──
 elif count > 0:
     # Đã đủ 8 ảnh
-    st.info("📸 Đã đủ 8 ảnh tối đa.")
+    st.info("📸 Đã đủ 5 ảnh tối đa.")
     if st.button("🏁 Hoàn tất & Lưu vào Sheet"):
         with st.spinner("Đang upload & lưu..."):
             try:
