@@ -250,7 +250,7 @@ if count > 0:
 # ── Chụp ảnh mới (nếu chưa đủ 8) ───────────────────────────────
 if count < MAX_PHOTOS:
     st.markdown(f'<div class="section-card"><div class="section-title">📷 Chụp ảnh #{count + 1}</div>', unsafe_allow_html=True)
-    photo = st.file_uploader(f"📷 Chụp hoặc chọn ảnh #{count + 1}", type=["jpg","jpeg","png"], key=f"cam_{count}")
+    photo = st.camera_input(f"Ảnh thứ {count + 1}", key=f"cam_{count}")
     st.markdown('</div>', unsafe_allow_html=True)
 
     if photo is not None:
