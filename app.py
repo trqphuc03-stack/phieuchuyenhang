@@ -96,7 +96,7 @@ st.markdown("""
         background: #E8F4FD;
     }
 
-    footer { visibility: hidden; }
+    video { transform: scaleX(1) !important; }
 </style>
 """, unsafe_allow_html=True)
 
