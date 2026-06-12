@@ -117,18 +117,33 @@ def get_google_clients():
 def add_watermark(image_bytes, text_lines):
     img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     draw = ImageDraw.Draw(img)
-    font_size = max(20, img.width // 30)
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
-    except:
+    font_size = max(40, img.width // 15)  # to hơn
+    font = None
+    font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf",
+    ]
+    for path in font_paths:
+        try:
+            font = ImageFont.truetype(path, font_size)
+            break
+        except:
+            continue
+    if font is None:
         font = ImageFont.load_default()
-    margin = 16
-    line_height = font_size + 6
+
+    margin = 24
+    line_height = font_size + 10
     x0 = margin
     y0 = img.height - (line_height * len(text_lines)) - margin
     for i, line in enumerate(text_lines):
         y = y0 + i * line_height
-        draw.text((x0 + 2, y + 2), line, font=font, fill=(0, 0, 0))
+        # Viền đen dày hơn (vẽ 4 hướng)
+        for dx, dy in [(-2,-2),(2,-2),(-2,2),(2,2)]:
+            draw.text((x0 + dx, y + dy), line, font=font, fill=(0, 0, 0))
+        # Chữ trắng
         draw.text((x0, y), line, font=font, fill=(255, 255, 255))
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=92)
